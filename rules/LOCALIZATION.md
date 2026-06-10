@@ -262,12 +262,12 @@ Chỉ giữ nguyên tiếng Anh khi là **tên riêng / acronym / thuật ngữ 
 "Notification:IssueClosed": "Issue closed",  // ✓ en
 // vi.json — quên thêm                       // ❌ orphan
 
-// Code — hardcode chuỗi
-return new { isSuccess = true, msg = "Đóng vấn đề thành công" };  // ❌ phải L["Notification:IssueClosed"]
+// Repository code — hardcode chuỗi
+return new { isSuccess = true, data = new { }, msg = "Đóng vấn đề thành công" };  // ❌ phải dùng localizer
 ```
 
 ## See also
 
 - `MENU_PERMISSION.md` — chain `Menu:` / `Permission:` key phải khớp constant.
-- `AI_PROMPT_BACKEND.md` — `L["..."]` trong AppService, `UserFriendlyException(L["Error:..."])` cho error.
+- `AI_PROMPT_BACKEND.md` — repository dùng localizer khi tạo `msg`; AppService không tạo response.
 - `AI_PROMPT_FRONTEND.md` — `abp.localization.localize("Key", "WorkManagement")` từ JS, `@L["Key"]` trong Razor.

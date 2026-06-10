@@ -14,10 +14,13 @@ Load these files **before** reviewing anything. They are the sources of truth:
 
 **Application boundary and public contract**
 - [ ] Public signature and response shape remain compatible with traced callers
-- [ ] Existing `ApiResult`, `ServiceResult`, `PagedResultDto<T>`, typed DTO, or legacy
-      `{ isSuccess, data, msg }` contract is preserved
-- [ ] AppService performs authorization, use-case validation, orchestration, and mapping
-- [ ] Unexpected exceptions are not converted into repository-level API envelopes
+- [ ] Repository-backed non-CRUD methods use `Task<object>` with all three fields
+      `{ isSuccess, data, msg }`
+- [ ] Existing `ApiResult`, `ServiceResult`, `PagedResultDto<T>`, or typed DTO contracts remain
+      unchanged unless the endpoint and all callers are migrated together
+- [ ] AppService contains route/authorization and one direct awaited repository call
+- [ ] AppService does not perform validation, branching, mapping, workflow, localization,
+      exception translation, or response construction
 - [ ] EF entities are not returned directly to public callers
 
 **Naming**
@@ -35,16 +38,17 @@ Load these files **before** reviewing anything. They are the sources of truth:
 - [ ] Raw SQL goes through `WMRepositoryExtensionMethods.EnsureConnectionOpenAsync` + `CreateCommand` + parameterized `NpgsqlParameter`
 
 **Security**
-- [ ] Input and business validation is placed at the layer that owns the rule
+- [ ] Input/use-case validation is implemented in the repository
 - [ ] Authorization check present (`[Authorize(...)]` or scope check)
 - [ ] No hardcoded secrets, no string-concatenated SQL
 - [ ] Stack trace not leaked to client
 
 **Layering (ABP)**
-- [ ] Application Service owns use-case orchestration and public mapping
-- [ ] Entities/domain managers/services own reusable business invariants and transitions
-- [ ] Repository owns only persistence/query behavior and returns typed persistence/query data
-- [ ] Repository does not own permissions, workflow decisions, or user-facing API envelopes
+- [ ] Application Service is a thin endpoint router
+- [ ] Repository owns the complete use case: validation, workflow, persistence, mapping,
+      exception translation, localization, and response construction
+- [ ] Repository response uses `isSuccess`, `data`, and `msg`; no `result` or `message` aliases
+- [ ] Permission attributes remain at the AppService boundary
 - [ ] DTO/AppService/Interface placed in the correct project per `.ai/PROJECT.md`
 
 **Audit, tenant, and soft-delete behavior**

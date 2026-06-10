@@ -50,14 +50,13 @@ Source: `rules/AI_PROMPT_FRONTEND.md`
 
 Source: `rules/AI_PROMPT_BACKEND.md`
 
-- [ ] Application Service owns authorization, use-case validation, orchestration, and public mapping
-- [ ] Domain entity/manager/service owns reusable business invariants and state transitions
-- [ ] Repository owns only persistence/query behavior; no permission, workflow, or API-envelope logic
-- [ ] Existing public contract remains stable: typed DTO, `ApiResult`, `ServiceResult`,
-      `PagedResultDto<T>`, or legacy `{ isSuccess, data, msg }`
-- [ ] Repository methods return typed persistence/query data rather than public response envelopes
-- [ ] Input validation is placed at the layer that owns the rule
-- [ ] Unexpected exceptions are handled by ABP or translated once at the Application boundary
+- [ ] Repository-backed non-CRUD AppService methods contain route/authorization plus one direct awaited repository call
+- [ ] AppService methods do not contain validation, branching, mapping, `try/catch`, workflow, localization, or response construction
+- [ ] Repository owns validation, workflow, persistence, mapping, exception translation, localization, and response construction
+- [ ] Repository-backed non-CRUD methods return `Task<object>` with all three fields `{ isSuccess, data, msg }`
+- [ ] Success/failure callers use `isSuccess`, `data`, and `msg`; no new `result` or `message` aliases
+- [ ] Existing typed DTO, `ApiResult`, `ServiceResult`, or `PagedResultDto<T>` contracts remain stable unless the endpoint and all callers are migrated together
+- [ ] Permission attributes remain at the AppService boundary
 - [ ] No N+1 — batched via `Where(ids.Contains(...))` + `ToDictionaryAsync()`
 - [ ] `.Select(...)` projection before `.ToListAsync()` — no raw entity returns
 - [ ] `.AsNoTracking()` on read-only queries; all DB calls `async` (no `.Result` / `.Wait()`)

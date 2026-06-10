@@ -4,59 +4,62 @@
 
 ## Core Principle
 
-Backend flow follows:
+Backend flow for repository-backed non-CRUD endpoints follows:
 
 ```text
-Application Service -> Domain logic -> Repository data access
+Application Service route/authorization -> Repository processing
 ```
 
-Each layer owns a different responsibility. Do not move business rules into repositories
-just to keep an AppService visually short.
+The Application Service is a thin endpoint router. The repository owns the complete use
+case processing and public response construction.
 
 ## Layer Responsibilities
 
 ### Application Service
 
-Application Services implement application use cases and expose the public contract.
+Application Services expose authorized endpoints and route calls to repositories.
 
 - Authorize the use case with `[Authorize(...)]` or an equivalent scope check.
-- Validate request shape and use-case preconditions.
-- Load aggregates or query models through repositories.
-- Call entity behavior, domain managers, or domain services for business decisions.
-- Coordinate multiple domain operations, repositories, external services, history hooks,
-  notifications, and the ABP Unit of Work.
-- Map entities/query results to DTOs and preserve the existing public response contract.
-- Keep persistence details out: no direct SQL and no reusable EF query construction.
+- Keep route attributes and public method signatures at this boundary.
+- For repository-backed non-CRUD methods, directly `await` and return the matching
+  repository method.
+- Do not add validation, branching, mapping, `try/catch`, workflow orchestration, localization,
+  or response construction to the AppService.
+- Do not access `DbContext`, raw SQL, or reusable EF query construction.
 
-An AppService may contain orchestration logic. It should not duplicate domain invariants or
-contain low-level data-access logic.
+Preferred shape:
+
+```csharp
+[HttpPost]
+[Authorize(WorkManagementPermissions.Requirement.Update)]
+public async Task<object> UpdateRequirement(InputDto input)
+    => await _repository.UpdateRequirement(input);
+```
 
 ### Domain
 
-The Domain layer owns business meaning and invariants.
+The Domain layer owns entity shape and reusable domain types.
 
 - Entities and aggregate roots protect valid state transitions.
 - Value objects model domain concepts.
-- Domain managers/services handle business rules that span entities or aggregates.
-- Repository interfaces describe persistence capabilities needed by the domain/application.
+- Repository interfaces describe complete use-case capabilities needed by Application
+  Services.
 - Domain code must not reference Application, HttpApi, Web, EF Core, or database-specific
   types.
 
-Put a rule in Domain when it must remain true regardless of which endpoint, background job,
-or integration invokes the operation.
-
 ### Repository
 
-Repositories implement persistence and query access.
+Repositories implement complete use cases.
 
+- Own input/use-case validation, workflow decisions, data access, persistence, mapping,
+  history hooks, notifications, external-service coordination, localization, and transaction
+  coordination.
 - Encapsulate EF Core, SQL, database joins, projections, batching, and persistence concerns.
-- Return entities, typed DTOs/query models, scalars, or collections appropriate to the
-  repository contract.
-- Do not return HTTP/API envelopes such as `{ isSuccess, data, msg }`.
-- Do not decide business outcomes, permissions, workflow transitions, or user-facing
-  messages.
-- Do not catch every exception merely to convert it into an API response. Preserve database
-  exception context for the application/framework boundary.
+- Catch expected use-case failures and construct the public object response.
+- Return `Task<object>` for repository-backed non-CRUD endpoint contracts.
+- Always use the exact response shape `{ isSuccess, data, msg }`; every response includes
+  all three fields.
+- Keep permission attributes at the AppService endpoint boundary.
 
 Repository interfaces belong in Domain when they operate on aggregates/domain persistence.
 Read-model interfaces that are purely application queries may live in Application.Contracts
@@ -70,27 +73,25 @@ or Application when that matches the existing module pattern.
 
 ## Public Contracts
 
-- Preserve existing public signatures and response shapes unless all callers are traced and
-  updated together.
-- Existing endpoints may use `ApiResult`, `ServiceResult`, `PagedResultDto<T>`, typed DTOs,
-  or the legacy `{ isSuccess, data, msg }` envelope. Match the established contract.
-- A legacy public envelope belongs at the Application boundary, not in Repository methods.
-- Prefer typed inputs and outputs for new internal contracts. Preserve legacy
-  `Task<object>` signatures when they are part of an existing public contract.
+- Repository-backed non-CRUD endpoints use `Task<object>` and return
+  `{ isSuccess, data, msg }`.
+- Success responses set `isSuccess = true`, return the payload in `data`, and set `msg` to
+  the localized success message or an empty string.
+- Failure responses set `isSuccess = false`, return an empty object/list in `data` matching
+  the endpoint shape, and put the localized user-facing reason in `msg`.
+- JavaScript callers read `response.isSuccess`, `response.data`, and `response.msg`.
+- Do not introduce `result` or `message` aliases in new or migrated object endpoints.
+- Existing `ApiResult`, `ServiceResult`, typed DTO, or `PagedResultDto<T>` contracts remain
+  unchanged until the endpoint and all callers are deliberately migrated together.
 - Never expose EF entities directly to public callers.
 
 ## Validation and Exceptions
 
-- Validate transport/input shape in Application Services with DTO validation, guard clauses,
-  or ABP validation.
-- Enforce business invariants in entities/domain services.
-- Validate database-specific constraints in Repository implementations where necessary.
-- Use `BusinessException` or `UserFriendlyException` for expected domain/application
-  failures when that matches existing project behavior.
-- Let ABP's exception pipeline handle unexpected exceptions unless an established public
-  response contract requires translation at the Application boundary.
-- Log unexpected failures once at the boundary that has useful use-case context. Do not
-  return stack traces or database details to clients.
+- DTO attributes and ABP may reject malformed transport input before the method executes.
+- Validate use-case preconditions and database-specific constraints in the repository.
+- Repository methods returning object responses translate exceptions once into
+  `{ isSuccess = false, data = ..., msg = localizedMessage }`.
+- Do not return stack traces or database command details to clients.
 
 ## ABP Audit and Entity Shape
 
@@ -172,8 +173,9 @@ command.Parameters.Add(new NpgsqlParameter("projectId", projectId));
 Test at the layer that owns the behavior:
 
 - Domain tests: invariants and state transitions.
-- Application tests: authorization, orchestration, mapping, and response contracts.
-- Repository/integration tests: EF queries, raw SQL, tenant filters, and database behavior.
+- Application tests: authorization attributes, routes, and direct repository delegation.
+- Repository/integration tests: validation, workflow, mapping, response objects, EF queries,
+  raw SQL, tenant filters, and database behavior.
 - Contract tests or caller checks: public DTO/envelope compatibility.
 
 Cover success, invalid input, not found, permission failure, tenant isolation, and expected
@@ -181,9 +183,9 @@ business failure where relevant.
 
 ## Review Checklist
 
-- [ ] Application Service owns use-case orchestration and public mapping.
-- [ ] Domain owns reusable business invariants and transitions.
-- [ ] Repository contains only persistence/query behavior.
+- [ ] Application Service contains only route/authorization and a direct awaited repository call.
+- [ ] Repository owns validation, workflow, persistence, mapping, localization, and response construction.
+- [ ] Repository-backed non-CRUD endpoints return all three fields `{ isSuccess, data, msg }`.
 - [ ] Existing public response contract remains stable.
 - [ ] Entity audit fields match its actual base class/interfaces.
 - [ ] Tenant and soft-delete behavior is verified for the execution context.

@@ -6,7 +6,7 @@ description: Use when adding a new ABP Application Service or feature use case t
 # new-appservice
 
 Scaffolds an ABP feature service following `AI_PROMPT_BACKEND.md`. The generated flow is
-Application Service orchestration -> Domain logic -> Repository data access.
+Application Service route/authorization -> Repository processing.
 
 ## When to invoke
 
@@ -20,8 +20,8 @@ Do NOT invoke when the user is editing an existing AppService — use `complianc
 
 1. **Entity name** (PascalCase, singular) — e.g. `Requirement`
 2. **Manager folder** — e.g. `ProjectManager`, `SITManager`, `WTSManager`, `OtherManager`
-3. **Business invariants/state transitions** that belong in an entity or domain manager
-4. **Repository capability needed** for custom persistence/query behavior
+3. **Entity or reusable domain types**, if the use case needs new domain shape
+4. **Repository capability needed** for the complete use case
 5. **Key non-CRUD use cases**, if any (e.g. `GetByProjectId`, `CloseWithTask`)
 
 ## Procedure
@@ -35,9 +35,10 @@ Do NOT invoke when the user is editing an existing AppService — use `complianc
 
 3. **Define contracts and responsibilities before creating files:**
 
-   - Application Service: authorization, request validation, orchestration, mapping, public response
-   - Domain: reusable business invariants and state transitions
-   - Repository: EF Core/raw SQL persistence and query behavior only
+   - Application Service: route attributes, authorization, and direct repository delegation
+   - Domain: entities, reusable domain types, and repository interfaces
+   - Repository: validation, workflow, EF Core/raw SQL, persistence, mapping, exception
+     translation, localization, and public object response
 
 4. **Create files in dependency order:**
 
@@ -49,20 +50,25 @@ Do NOT invoke when the user is editing an existing AppService — use `complianc
    b. **Service interface** under `Source/src/WorkManagement.Application.Contracts/<Manager>/<Entity>s/`:
       - `I<Entity>AppService.cs` extending `ICrudAppService<...>`
 
-   c. **Domain behavior** under `Source/src/WorkManagement.Domain/<Manager>/<Entity>s/`:
-      - Add behavior to the entity when the invariant belongs to one aggregate
-      - Add `<Entity>Manager.cs` / domain service when a rule spans entities or requires
-        domain-level collaboration
+   c. (Optional) **Domain types** under `Source/src/WorkManagement.Domain/<Manager>/<Entity>s/`:
+      - Add entity/value-object shape only when the use case requires it
+      - Do not place endpoint validation, workflow, orchestration, mapping, localization, or
+        response construction in a domain manager/service; the repository owns the complete
+        use case
       - Do not reference Application, Web, HttpApi, or EF Core types
 
-   d. (Optional) **Repository interface** under `Source/src/WorkManagement.Domain/<Manager>/<Entity>s/`:
+   d. **Repository interface** under `Source/src/WorkManagement.Domain/<Manager>/<Entity>s/`:
       - `I<Entity>Repository.cs` extending `IRepository<<Entity>, Guid>` with the custom method signatures
-      - Return entities, typed query models, scalars, or collections; never an API envelope
+      - For non-CRUD endpoint methods, return `Task<object>` using
+        `{ isSuccess, data, msg }`
 
-   e. (Optional) **Repository implementation** under `Source/src/WorkManagement.EntityFrameworkCore/<Manager>/<Entity>s/`:
+   e. **Repository implementation** under `Source/src/WorkManagement.EntityFrameworkCore/<Manager>/<Entity>s/`:
       - `<Entity>Repository.cs` extending `EfCoreRepository<WorkManagementDbContext, <Entity>, Guid>` and implementing `I<Entity>Repository`
-      - Implement only persistence/query behavior
-      - Use typed results, async EF APIs, projection/batching, and parameterized raw SQL
+      - Implement the complete use case: validation, workflow, persistence, mapping,
+        localization, and response construction
+      - Use async EF APIs, projection/batching, and parameterized raw SQL
+      - Return success/failure objects with all three fields `isSuccess`, `data`, and `msg`;
+        do not introduce `result` or `message` aliases
       - Match sibling XML-doc/region conventions; do not add boilerplate mechanically
 
    f. **AppService** under `Source/src/WorkManagement.Application/<Manager>/<Entity>s/`:
@@ -71,8 +77,9 @@ Do NOT invoke when the user is editing an existing AppService — use `complianc
       - Implement `I<Entity>AppService`
       - Apply `[Authorize(WorkManagementPermissions.<Entity>.Default)]` or the matching
         use-case permission
-      - Orchestrate repositories and domain behavior, then map to the established public
-        response contract
+      - For non-CRUD methods, directly await and return the matching repository method
+      - Do not add validation, branching, mapping, `try/catch`, workflow, localization, or
+        response construction
       - Do not access DbContext or raw SQL directly
 
 5. **Wire up dependencies**:
