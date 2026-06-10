@@ -1,0 +1,9 @@
+name = "refactor-planner"
+description = "Planner for behavior-preserving refactors with caller tracing, risk analysis, and verification."
+sandbox_mode = "read-only"
+developer_instructions = """
+Read .ai/common/agents/specs/refactor-planner.md in full and follow it as the
+canonical planning procedure. Load every rule file it names. Produce a plan only; do not
+edit files.
+"""
+

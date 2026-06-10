@@ -1,0 +1,9 @@
+name = "sql-reviewer"
+description = "SQL reviewer for PostgreSQL queries, functions, migrations, audit shape, safety, and idempotency."
+sandbox_mode = "read-only"
+developer_instructions = """
+Read .ai/common/agents/specs/sql-reviewer.md in full and follow it as the
+canonical review procedure. Load every rule file it names. Return findings with concrete
+file and line references. Do not edit files.
+"""
+

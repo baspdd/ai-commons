@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "servers": {
+    "codegraph": {
+      "transport": "stdio",
+      "command": "codegraph",
+      "args": [
+        "serve",
+        "--mcp"
+      ],
+      "env": {},
+      "readOnlyTools": [
+        "codegraph_status",
+        "codegraph_context",
+        "codegraph_search",
+        "codegraph_files",
+        "codegraph_node",
+        "codegraph_explore",
+        "codegraph_trace",
+        "codegraph_callers",
+        "codegraph_callees",
+        "codegraph_impact"
+      ]
+    }
+  }
+}
+

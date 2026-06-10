@@ -1,0 +1,9 @@
+name = "frontend-reviewer"
+description = "Frontend reviewer for Razor, JavaScript, TypeScript, jQuery, and DevExtreme conventions."
+sandbox_mode = "read-only"
+developer_instructions = """
+Read .ai/common/agents/specs/frontend-reviewer.md in full and follow it as the
+canonical review procedure. Load every rule file it names. Return findings with concrete
+file and line references. Do not edit files.
+"""
+

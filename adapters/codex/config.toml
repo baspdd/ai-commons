@@ -1,0 +1,20 @@
+[mcp_servers.codegraph]
+command = "codegraph"
+args = ["serve", "--mcp"]
+enabled = true
+startup_timeout_sec = 20
+tool_timeout_sec = 60
+default_tools_approval_mode = "auto"
+enabled_tools = [
+  "codegraph_status",
+  "codegraph_context",
+  "codegraph_search",
+  "codegraph_files",
+  "codegraph_node",
+  "codegraph_explore",
+  "codegraph_trace",
+  "codegraph_callers",
+  "codegraph_callees",
+  "codegraph_impact",
+]
+
