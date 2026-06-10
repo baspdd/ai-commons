@@ -1,6 +1,6 @@
 # Shared AI Rule Router
 
-This file is the canonical routing table for Claude, Codex, Kiro, and other coding agents.
+This file is the canonical routing table for Claude, Codex, and other coding agents.
 Load detailed rules only when the task touches their scope.
 
 | Scope | Canonical rule |

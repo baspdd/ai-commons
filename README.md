@@ -1,7 +1,7 @@
 # AI Commons
 
 Host-neutral rules, skills, agent specifications, and MCP declarations shared by
-Claude, Codex, Kiro, and other coding agents.
+Claude, Codex, and other coding agents.
 
 This repository is the canonical source for shared AI behavior. Project-specific
 architecture and guardrails must stay in each project's `.ai/` directory.
@@ -25,8 +25,7 @@ project/
 |   `-- skills/                     # Project-specific skills
 |-- .agents/skills/                 # Codex project skill discovery
 |-- .claude/                        # Claude adapter -> .ai
-|-- .codex/                         # Codex adapter -> .ai
-`-- .kiro/                          # Kiro adapter -> .ai
+`-- .codex/                         # Codex adapter -> .ai
 ```
 
 Dependency flow:
@@ -34,7 +33,6 @@ Dependency flow:
 ```text
 .claude --+
 .codex  --+--> .ai/PROJECT.md + .ai/agents + .ai/skills
-.kiro   --+                         |
 .agents ---------------------------+
                                     v
                               .ai/common
@@ -91,9 +89,8 @@ repository does not silently change existing projects.
 
 ## MCP
 
-`manifests/mcp.json` is the canonical declaration. Host adapters translate it to:
+`manifests/mcp.json` is the canonical declaration. The Codex adapter translates it to:
 
 - Codex: `adapters/codex/config.toml`
-- Kiro: `adapters/kiro/mcp.json`
 
-Both use `codegraph serve --mcp` from `PATH`; no user-specific executable path is stored.
+It uses `codegraph serve --mcp` from `PATH`; no user-specific executable path is stored.

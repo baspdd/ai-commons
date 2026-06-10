@@ -16,4 +16,3 @@ checkout path.
 For other hosts use:
 
 - Codex: `adapters/codex/`
-- Kiro: `adapters/kiro/`
