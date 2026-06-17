@@ -14,14 +14,14 @@ frontend/comment/extract rules in project memory or Codex summary files.
 - Inline simple linear logic, even when the parent function becomes longer.
 - Extract only complex logic or shared logic used by 2+ callers.
 - Place child helpers used by one parent immediately below that parent; lift helpers used by 2+ callers into the shared helpers section.
-- Use concise logic-only comments by default: `/** Logic: ... */` or `// Logic: ...`.
-- Use full `@param` / `@returns` JSDoc only for non-obvious shared/public API contracts.
+- Comment **every** logic block; scale the comment to the unit's size — small helper → one-line `// Logic: ...`, medium function → `/** Logic: ... */` block, large/public/non-obvious function → full `@param` / `@returns` JSDoc.
+- Structure files with `// ═══ SECTION ═══` banners — one per section by default. Add `// ─── sub-section ──` (em-dash) banners only inside a large section with several distinct sub-blocks (e.g. a feature panel's render / events), so a reader follows banner → function → inline steps top-down.
 - Prefer early returns to reduce deep nesting.
 
 ## JavaScript/TypeScript Rules
 
-**Function Structure**
-- Default function comment style is a short logic comment, not full JSDoc:
+**Function Structure — comment depth scales with function size**
+- Every function carries a comment whose depth matches its size. **Medium** functions (branching / several steps) use a `/** Logic: ... */` block like:
   ```js
   /**
    * Logic:
@@ -29,8 +29,8 @@ frontend/comment/extract rules in project memory or Codex summary files.
    * - Important edge case only if it is not obvious from code
    */
   ```
-- Use a one-line `// Logic: ...` comment for short single-step helpers.
-- Full JSDoc with `@param` / `@returns` is an exception, not the default:
+- **Small** functions (≤ ~8 lines, single step) use a one-line `// Logic: ...` instead of the block — but still always get a comment.
+- **Large / public / non-obvious-contract** functions use full JSDoc with `@param` / `@returns` (the bigger and more reused, the more it documents):
   ```js
   /**
    * Brief description
@@ -48,9 +48,8 @@ frontend/comment/extract rules in project memory or Codex summary files.
 - Constants: `UPPER_SNAKE_CASE` at top of file or in separate config
 
 **Comments & Logic Documentation (must)**
-- **Default**: function comments should document **logic/intent only** via `/** Logic: ... */` or `// Logic: ...`.
-- **Full JSDoc**: use `@param` / `@returns` only for shared/public APIs where the parameter or return contract is non-obvious and the docs add value.
-- **Do not** add full `@param` / `@returns` blocks to short helpers, event handlers, page-level render/load functions, or straightforward functions just because they are functions.
+- **Every logic block is commented** — banners, function headers, and non-trivial blocks inside a body. A reader skimming major banner → sub banner → function header → inline steps should follow the logic top-down without reading the implementation.
+- **Scale to size**: small helper → one-line `// Logic: ...`; medium function → `/** Logic: ... */`; large/public/non-obvious-contract function → full `@param` / `@returns` JSDoc. The bigger and more reused the function, the more it documents.
 - **Inline comments**: use `//` to mark major steps inside function body:
   ```js
   // 1. Validate input
@@ -61,29 +60,18 @@ frontend/comment/extract rules in project memory or Codex summary files.
 - Complex logic (loops, conditions, DOM manipulation): add explanatory comment above the block
 - Avoid obvious comments (`// increment i` for `i++`); focus on **why**, not **what**
 
-**When to SKIP the full JSDoc block (anti-bloat rule)**
+**Comment depth scales with function size (every function commented)**
 
-Full `@param` / `@returns` / `Logic:` JSDoc is for **non-trivial shared/public API contracts only**. For ordinary page functions, handlers, helpers, callbacks, and one-liners it inflates the file far more than it documents — a 6-line `setCellValue` or `renderXxx` does not need a 9-line JSDoc above it.
+Match the comment to the unit's size — the goal is that **every logic block is documented**, not that comments are minimized. Together with the section banners, a reader follows section banner → (sub-section banner, where present) → function header → inline step comments top-down without reading the implementation.
 
-Skip the full JSDoc block (use a single `// short description` line instead) when **all** of these are true:
-- The function body is **≤ ~8 lines** and is a single conceptual step (no branching beyond an early-return / guard).
-- It is an **inline callback** or option-bag handler — `onClick`, `onValueChanged`, `setCellValue`, `onInitNewRow`, comparator/predicate in `.sort()` / `.find()` / `.filter()`, an event handler passed to `.on(...)`, etc.
-- The parameter shape is **already obvious from context** — e.g. the DevExtreme event object passed to `onValueChanged`, a row object in `setCellValue`, the standard `(rowA, rowB)` of a comparator.
-- It is **not exported** and not reused from another file.
+- **Small** (≤ ~8 lines, single conceptual step; inline callbacks / option-bag handlers / `.sort()`·`.find()`·`.filter()` predicates included): a single `// Logic: ...` line above it. Always present — "too small to comment" is not an exemption; even a tiny helper gets a moderate one-line comment.
+- **Medium** (branching, several steps, a real helper): a `/** Logic: ... */` block listing the key steps and non-obvious edge cases; add numbered `// 1. … // 2. …` inline comments for the distinct phases inside the body.
+- **Large / public / cross-file / non-obvious contract**: full JSDoc with `@param` / `@returns` describing the parameter and return shape, plus a `Logic:` bullet list. The bigger and more reused the function, the more it must document.
 
-When skipping, still:
-- Put a **one-line `//` comment** above the function explaining the intent (the "why", not the "what").
-- Keep numbered inline step comments **only if** the body actually has multiple distinct steps worth labelling — don't fake-split a 4-line body into `// 1.` / `// 2.` / `// 3.` just to satisfy the checklist.
-- Keep variable-naming rules (no single letters, `event` not `e`, etc.) — those apply regardless of size.
-
-Write the full JSDoc block only when the function is a **shared/public API contract** and at least one of these is true:
-- The parameter shape is **non-obvious** (custom object, multiple options, optional flags).
-- The return shape is **non-obvious** and callers depend on it.
-- The function is consumed across files/modules and the contract is not clear from the name/call site.
-
-For page-local `renderXxx`, `loadXxx`, `onXxx`, route helpers, and straightforward business helpers, prefer `/** Logic: ... */` without `@param` / `@returns`.
-
-Rule of thumb: if the JSDoc block is longer than the function body, delete the JSDoc and write a one-line comment.
+Still applies at every size:
+- Focus on **why**, not **what** — don't restate the code (`// increment i` for `i++`).
+- Don't fake-split a short body into `// 1. / // 2.` just to fill the checklist — only label genuinely distinct phases.
+- Naming rules hold regardless of size (no single letters, `event` not `e`, etc.).
 
 **Validation & Edge Cases**
 - Check `null`/`undefined`/empty string before processing
@@ -140,7 +128,7 @@ Once you decide to extract, apply the **placement rule** (also stated in File Or
 - Name caches after their DOM id / role: `$headerComp`, `$detailComp`, `$activityComp`, `$modalContainer`
 
 **File Organization (page-level JS)**
-Ordered top-to-bottom sections separated by `// ─── SECTION NAME ──` banners (em dashes, **not** `// ═══`):
+Ordered top-to-bottom sections. **Scale banner depth to size:** by default give each section a single `// ═══ SECTION ═══` banner. Add a second `// ─── sub-section ──` (em-dash) level **only inside a large section that has several distinct sub-blocks** — typically a feature panel with render / row-builders / events, and especially when those sub-labels repeat across multiple panels (the `═══` banner is then the only thing telling you which panel you're in). Don't put a major banner over a single small section — it just duplicates the sub-label below it.
 
 1. **CONSTANTS** — `const` lookup maps, enums, fixed values (e.g. `ISSUE_TABS`, `STATUS_CLASS_MAP`, `TD_LEVELS`)
 2. **STATE** — `let` module-level state (e.g. `issueHeader`, `issueDetail`, `activities`, `activityFilters`)
@@ -155,16 +143,45 @@ Ordered top-to-bottom sections separated by `// ─── SECTION NAME ──` b
 8. **INIT HELPERS** — `cacheSelectors()`, `renderAll()`, `bindEvents()`
 9. **INIT** — single `$(async function () { … })` at the very bottom that calls the init helpers in order
 
-**Banner format example:**
+**Banner format — default: one `═══` banner per section, single level:**
 ```js
-// ─── CONSTANTS ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════
 const VALID_TYPES = ['sprint', 'requirement', 'release', 'feature'];
 
-// ─── STATE ──────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
 let selectedType = 'sprint';
 
-// ─── CACHED SELECTORS ───────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════
+// CACHED SELECTORS
+// ═══════════════════════════════════════════════════════════
 let $sidebar, $timelineWrap, $ganttHeader;
+```
+
+**Add a second `───` level only inside a large section whose sub-blocks repeat** — e.g. multiple feature panels that each have render / events, where the `═══` banner is what disambiguates the otherwise-identical sub-labels:
+```js
+// ═══════════════════════════════════════════════════════════
+// HEADER
+// ═══════════════════════════════════════════════════════════
+
+// ─── RENDER ──────────────────────────────────────────────
+function renderHeader() { … }
+
+// ─── EVENTS ──────────────────────────────────────────────
+function onHeaderTabClick(e) { … }
+
+// ═══════════════════════════════════════════════════════════
+// DETAIL
+// ═══════════════════════════════════════════════════════════
+
+// ─── RENDER ──────────────────────────────────────────────
+function renderDetail() { … }
+
+// ─── EVENTS ──────────────────────────────────────────────
+function onDetailSave(e) { … }
 ```
 
 Sub-function placement rule: if a helper is called in **one** place → put it immediately below its parent. If it's called in **more than one** place → lift it to the HELPERS section.
@@ -222,7 +239,7 @@ function diffHtml(htmlBefore, htmlAfter) {
 
 ## Checklist (AI/Developer)
 
-- [ ] Function comments default to `/** Logic: ... */` or `// Logic: ...`; full `@param` / `@returns` JSDoc is only for non-obvious shared/public API contracts. **Anti-bloat rule: if the JSDoc is longer than the function body, drop it.**
+- [ ] Every function commented, depth scaled to size — small: one-line `// Logic: ...`; medium: `/** Logic: ... */`; large/public/non-obvious: full `@param` / `@returns` JSDoc.
 - [ ] **Inline comments** marking major steps (// 1. Validate, // 2. Parse, etc.) — only when the body has multiple distinct steps worth labelling, not as filler for 3-line functions
 - [ ] Input validation (null/empty checks)
 - [ ] Safe DOM handling (DOMParser, textContent)
@@ -231,7 +248,7 @@ function diffHtml(htmlBefore, htmlAfter) {
 - [ ] Descriptive names + helper functions if complex
 - [ ] **No single-letter variables** — `D`/`d`/`i`/`f`/`t` etc. renamed to domain terms (`store`, `detail`, `index`, `file`, `task`)
 - [ ] **Cached `$selector` vars** declared at the top and assigned in `cacheSelectors()`; no repeated `$('#id')` lookups inside render methods
-- [ ] Section banners use `// ─── SECTION NAME ──` (em dashes), not `// ═══ ═══`
+- [ ] Banner depth scaled to size — one `// ═══ SECTION ═══` per section by default; add `// ─── sub-section ──` (em-dash) only inside a large section whose sub-blocks repeat across panels (no major banner over a single small section)
 - [ ] `$(async function () { … })` entry point lives at the very bottom and calls `cacheSelectors()` → `bindEvents()` → data load → render
 - [ ] Flat `renderXxx` / `onXxxClick` functions grouped by feature banner, **not** object-based `HeaderComp.render()` pseudo-classes
 
