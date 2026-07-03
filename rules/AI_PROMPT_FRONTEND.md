@@ -122,6 +122,32 @@ Once you decide to extract, apply the **placement rule** (also stated in File Or
 - Called in **one** place → put it immediately below its parent.
 - Called in **more than one** place → lift it to the HELPERS section.
 
+**Shared globals & page script includes (must — page-killing bug class)**
+
+Page scripts are classic scripts sharing one global scope; two mistakes here kill the whole page:
+
+- **Missing include → `ReferenceError`.** Any shared global a page script references
+  (`getPriorityHtml`, `priorityPillByKey`, `getPriorityEditorItems`, `PriorityConfigs`,
+  `normalizeIssuePriority`, `baseGridConfig`, `notify`, `Project`, `Table`, …) must be
+  verifiably loaded on that page **before** the page script:
+  - Global for every page: only what the AdminLTE Global bundle adds in
+    `WorkManagementWebModule.cs` (currently `/dist/js/common/priority-common.js`).
+  - Everything else (notably `/dist/js/common-function.js`) is per-page — the page's
+    `.cshtml` must have the `<script>` include ABOVE the page script include.
+  - Top-level statements run at parse time — do not assume "it worked in the console";
+    verify the include exists in the `.cshtml` (or the global bundle) for EVERY page
+    that loads the edited script.
+- **Duplicate top-level `const`/`let` → `SyntaxError`, entire script rejected.** Before
+  adding a shared script include to a page, grep every script already loaded on that page
+  for top-level declarations that collide with the shared file. Known trap:
+  `common-function.js` declares `loadPanel`, `Project`, `notify`, `Table`, `baseGridConfig`, …
+  — several task pages (e.g. `SubTask/Tasks`, `ForAProject/Personal`, `TodoList`) declare
+  their own `const loadPanel`, so `common-function.js` must NOT be added there.
+- **New shared helpers**: put them in a module that exports via `window.*` inside an IIFE
+  (pattern: `priority-common.js`) — never as top-level `const`/`let` — so they can neither
+  collide nor be load-order-fragile. Prefer extending the global-bundle module over adding
+  per-page includes.
+
 **Cached DOM selectors (page-level jQuery code)**
 - Declare module-level `$selector` variables once at the top (next to state) and assign them in a `cacheSelectors()` helper called from init
 - Re-render methods must use the cached selector (`$headerComp.html(…)`), not `$('#headerComp').html(…)` — repeated `$('#…')` lookups are both slower and noisier to read
@@ -242,6 +268,8 @@ function diffHtml(htmlBefore, htmlAfter) {
 - [ ] Every function commented, depth scaled to size — small: one-line `// Logic: ...`; medium: `/** Logic: ... */`; large/public/non-obvious: full `@param` / `@returns` JSDoc.
 - [ ] **Inline comments** marking major steps (// 1. Validate, // 2. Parse, etc.) — only when the body has multiple distinct steps worth labelling, not as filler for 3-line functions
 - [ ] Input validation (null/empty checks)
+- [ ] **Shared globals resolvable on every page that loads the script** — identifier comes from the AdminLTE Global bundle or a `.cshtml` `<script>` include placed BEFORE the page script; checked per page, not assumed
+- [ ] **No top-level `const`/`let` collisions** when a page gains a new shared-script include (grep both files' top-level declarations first); new shared helpers export via `window.*` in an IIFE, never top-level `const`/`let`
 - [ ] Safe DOM handling (DOMParser, textContent)
 - [ ] **jQuery-first** — `$('#id')` not `document.getElementById()`, `$el.remove()` not `el?.remove()`, etc.
 - [ ] `const`/`let` (not `var` unless legacy)

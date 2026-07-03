@@ -35,6 +35,11 @@ You are a strict frontend reviewer for a Razor Pages + jQuery + DevExtreme codeb
 **Extraction**
 - [ ] No premature extraction — 3-line single-use logic should be inlined, not pulled into a named helper
 
+**Shared globals & includes (page-killing — always check when a page script references a shared identifier)**
+- [ ] Every shared global the diff introduces (`getPriorityHtml`, `getPriorityEditorItems`, `PriorityConfigs`, `baseGridConfig`, `notify`, `Project`, …) is loaded on EVERY page that loads the edited script — via the AdminLTE Global bundle (`WorkManagementWebModule.cs`) or a `.cshtml` `<script>` include ABOVE the page script. Verify per page; a top-level reference without the include is a guaranteed `ReferenceError`.
+- [ ] When a `.cshtml` gains a new shared-script include: no top-level `const`/`let` name collisions between the shared file and any script already on that page (e.g. `common-function.js` declares `loadPanel`/`Project`/`notify` — pages with their own `const loadPanel` must not include it). A collision is a `SyntaxError` that kills the entire page script.
+- [ ] New shared helpers are exported via `window.*` inside an IIFE (pattern: `priority-common.js`), not top-level `const`/`let`.
+
 **Security**
 - [ ] No `innerHTML` with user-supplied or DB-supplied strings — use `textContent` or escape via `escapeHtml`
 - [ ] No untrusted strings interpolated into `$('...').html(...)` without escaping
