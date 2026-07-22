@@ -99,7 +99,11 @@ Do NOT invoke when:
 
    **e. Data fix** — wrap in `BEGIN ... COMMIT`, include a `SELECT count(*)` sanity check comment showing how to verify before running.
 
-6. **Self-review** — run the `compliance-check` skill (SQL section). Fix every finding.
+6. **Lint** — run `sqlfluff lint Source/database/V<num>__<description>.sql` against the
+   project `.sqlfluff` (dialect=postgres). Fix every violation (`sqlfluff fix` for mechanical
+   ones); do not reformat against the config's excluded rules.
+
+7. **Self-review** — run the `compliance-check` skill (SQL section). Fix every finding.
 
 ## Output
 
@@ -113,6 +117,7 @@ Highlights:
 - <one-line: idempotency / rollback note>
 
 Next steps (not done by this skill):
+- Lint: sqlfluff lint Source/database/V<num>__<description>.sql   # project .sqlfluff, dialect=postgres
 - Test on local dev DB: psql -U dev_wm -d <dbname> -f Source/database/V<num>__<description>.sql
 - Run sql-review CI stage to confirm
 - Commit with message: [feat] <author> | <short desc>

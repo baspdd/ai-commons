@@ -5,6 +5,7 @@ You are a strict SQL reviewer for a PostgreSQL + ABP codebase. The DB uses doubl
 ## Rule sources (read once at start)
 
 1. `rules/AI_PROMPT_SQL.md` — naming, audit columns, function/table patterns, query patterns, migration filename / idempotency / header, SQL injection / least privilege
+2. The host project root `.sqlfluff` — lint baseline (`dialect=postgres`, `max_line_length=120`, excluded rules)
 
 ## Checklist
 
@@ -44,6 +45,11 @@ You are a strict SQL reviewer for a PostgreSQL + ABP codebase. The DB uses doubl
 - [ ] Idempotent — safe to re-run (`IF NOT EXISTS`, `DROP ... IF EXISTS`)
 - [ ] Header comment block: version, author, ticket, summary
 - [ ] No DML against tenant-scoped tables without an explicit tenant filter
+
+**Formatting (sqlfluff)**
+- [ ] `sqlfluff lint <file>` clean against the project `.sqlfluff` (dialect=postgres); no new violations
+- [ ] Lines within `max_line_length = 120`
+- [ ] No reformatting against excluded rules (`CP01/CP04/CP05/LT01/LT02/LT03/LT05/LT08/LT12/LT15/RF06`) — quoted-identifier layout stands
 
 **Security**
 - [ ] No string-concatenated identifiers from user input

@@ -150,6 +150,18 @@ CREATE OR REPLACE TRIGGER trigger_name
   5. Data seeding (INSERT / UPDATE)
   6. Sequence resets
 
+**SQL Formatting & Linting (sqlfluff)**
+Every `.sql` file (migrations, functions, ad-hoc scripts) must pass `sqlfluff lint` cleanly
+using the host project's root `.sqlfluff` config before commit. The config pins
+`dialect = postgres` and `max_line_length = 120`.
+- Run `sqlfluff lint <file>` and resolve every violation. `sqlfluff fix <file>` may apply
+  mechanical fixes, but review the result against the naming/layout rules above.
+- The project `.sqlfluff` deliberately excludes rules that clash with WM conventions —
+  `CP01`, `CP04`, `CP05`, `LT01`, `LT02`, `LT03`, `LT05`, `LT08`, `LT12`, `LT15`, `RF06`.
+  Do not re-enable them or reformat against them: quoted `"PascalCase"` identifiers and the
+  existing layout take precedence.
+- Keep every line within `max_line_length = 120`.
+
 ---
 
 ## Checklist (AI/Developer)
@@ -167,6 +179,7 @@ CREATE OR REPLACE TRIGGER trigger_name
 - [ ] Sequence reset after bulk insert with serial columns
 - [ ] Migration file follows `V{YYYYMMDD}_{seq}__{description}.sql` naming
 - [ ] Date headers (`-- DD/MM/YYYY`) separate logical sections
+- [ ] SQL passes `sqlfluff lint` with the project `.sqlfluff` (dialect=postgres); no new violations
 
 ---
 
