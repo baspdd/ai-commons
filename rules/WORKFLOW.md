@@ -129,9 +129,16 @@ For a mutating request, run the full sequence:
 3. Produce a grounded implementation prompt from the impact report (use `prompt-optimizer`
    when available). Use `decision-matrix` only when two or more viable choices remain.
 4. Produce a decision-complete implementation plan and apply `critique` before presenting
-   it. Then stop and wait for explicit user approval. Tool, command, or sandbox approval
-   does not approve the plan.
-5. After approval, keep one writer, invoke `load-rules`, and implement the approved scope.
+   it. Use the host or extension's runtime Plan mode state as the approval gate:
+   - When native Plan mode is active, present the plan through that mode, then stop and wait
+     for explicit user confirmation.
+   - When native Plan mode is not active, present the same complete plan and continue to
+     implementation in the same request without a separate plan-approval turn.
+   Do not infer this state from whether the host supports Plan mode. Tool, command, sandbox,
+   destructive-action, and other required safety approvals remain separate and must still
+   be honored.
+5. After the Plan-mode gate resolves, keep one writer, invoke `load-rules`, and implement
+   the planned scope.
 6. Run relevant tests/builds, then `compliance-check`.
 7. Run an independent reviewer appropriate to the changed scope; repeat the integrity
    assessment against the actual diff when an integrity trigger exists.
@@ -146,12 +153,15 @@ If `DIRECT` or `SCOPED` expands into a `FULL` trigger:
 1. Stop at a safe boundary without discarding existing user work.
 2. Report completed edits and the newly discovered impact.
 3. Produce the `FULL` impact report, implementation prompt, and plan.
-4. Wait for explicit approval before any further implementation.
+4. Apply the mutating `FULL` Plan-mode gate from section 3: wait for explicit confirmation
+   only when native Plan mode is active; otherwise continue after presenting the updated
+   plan without a separate plan-approval turn.
 
 Do not silently continue under the earlier classification.
 
 ## 5. Completion Evidence
 
 Report the final workflow level, files changed, rules/skills/agents actually used, tests and
-builds run, review verdicts, skipped checks, and remaining uncertainty. Never report done
-while compliance or required review is blocked.
+builds run, review verdicts, skipped checks, remaining uncertainty, and, for mutating `FULL`,
+the runtime Plan mode state and how its approval gate resolved. Never report done while
+compliance or required review is blocked.
