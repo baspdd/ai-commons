@@ -168,6 +168,51 @@ command.Parameters.Add(new NpgsqlParameter("projectId", projectId));
 - Preserve existing comments during edits and refactors unless the user explicitly requests
   documentation cleanup.
 
+### Interface Files
+
+An interface declares the contract shape only. Behavior lives in the implementation, so that is
+the only place worth documenting — a doc on the declaration duplicates it and drifts silently.
+
+- No comments in an interface: no XML documentation, no inline comments, no `#region`.
+- Put the doc on the implementing member instead, and only when the contract is non-obvious
+  (ownership of persistence, a deliberately skipped check, a null that means success).
+- Do not write `/// <inheritdoc />` on an implementation whose interface member has no doc;
+  it inherits nothing and reads as noise.
+- Applies to new and edited members. Do not mass-delete existing interface docs unless the
+  user asks for a documentation cleanup.
+
+Declaration format, one member per line group, one blank line between members:
+
+- Single line when it fits within 120 characters.
+- Otherwise wrap: type + name + `(` on the first line, one parameter per line indented by four
+  spaces, `);` closing on the last parameter line.
+- Never mix — no two parameters sharing a wrapped line.
+- Keep optional parameters last, with `CancellationToken cancellationToken = default` at the end.
+- Overloads stay adjacent, ordered narrowest input first.
+
+```csharp
+public interface IIssueRepository : IRepository<Issue, Guid>
+{
+    Task<bool> CanManageIssueLifecycleAsync(Guid projectId);
+
+    Task<string> ValidateStatusTransitionAsync(
+        Guid issueId,
+        Guid targetStatusId,
+        StatusTransitionKind kind = StatusTransitionKind.UserAction,
+        CancellationToken cancellationToken = default);
+
+    Task<string> ValidateStatusTransitionAsync(
+        IReadOnlyCollection<Issue> issues,
+        Guid targetStatusId,
+        StatusTransitionKind kind = StatusTransitionKind.UserAction,
+        CancellationToken cancellationToken = default);
+}
+```
+
+When two overloads differ only in their first parameter but resolve state differently — one
+reloading from the database, the other trusting in-memory entities — give them distinct names
+instead of relying on the reader to notice the overload.
+
 ## Testing
 
 Test at the layer that owns the behavior:
@@ -188,6 +233,7 @@ business failure where relevant.
 - [ ] Repository-backed non-CRUD endpoints return all three fields `{ isSuccess, data, msg }`.
 - [ ] Existing public response contract remains stable.
 - [ ] Entity audit fields match its actual base class/interfaces.
+- [ ] Interfaces carry no comments; declarations follow the single-line/wrapped format.
 - [ ] Tenant and soft-delete behavior is verified for the execution context.
 - [ ] No N+1; async and projection patterns are appropriate.
 - [ ] Raw SQL is parameterized and explicitly scoped.
