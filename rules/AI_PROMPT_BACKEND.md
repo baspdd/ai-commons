@@ -183,7 +183,9 @@ the only place worth documenting — a doc on the declaration duplicates it and 
 
 Declaration format, one member per line group, one blank line between members:
 
-- Single line when it fits within 120 characters.
+- Single line only when it fits within 100 characters **and** takes at most three parameters.
+  Nobody reads a 150-character declaration without scrolling sideways, and a long line hides its
+  own parameter list.
 - Otherwise wrap: type + name + `(` on the first line, one parameter per line indented by four
   spaces, `);` closing on the last parameter line.
 - Never mix — no two parameters sharing a wrapped line.
@@ -194,6 +196,8 @@ Declaration format, one member per line group, one blank line between members:
 public interface IIssueRepository : IRepository<Issue, Guid>
 {
     Task<bool> CanManageIssueLifecycleAsync(Guid projectId);
+
+    Task<List<IssueItemDto>> GetIssuesByIds(List<Guid> issueIds);
 
     Task<string> ValidateStatusTransitionAsync(
         Guid issueId,
