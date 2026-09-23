@@ -71,12 +71,17 @@ Source: `rules/AI_PROMPT_SQL.md`
 
 - [ ] Identifiers quoted PascalCase, tables prefixed `WM_`
 - [ ] plpgsql locals `snake_case`; parameters `_param` / `p_param`
-- [ ] `DROP IF EXISTS` before `CREATE` (idempotent)
+- [ ] No `DROP` in a migration — `CREATE OR REPLACE` / `IF NOT EXISTS`; a signature change is a new
+      function name, and the obsolete object is dropped by hand after deploy
 - [ ] Audit columns match the entity base class/interfaces
 - [ ] `OWNER TO dev_wm` set on tables and functions
 - [ ] `WHERE "IsDeleted" = false` on reads of soft-delete entities unless intentionally bypassed
 - [ ] CTEs over deep subqueries; each CTE commented
-- [ ] Migration filename matches convention; header comment with version / author / ticket
+- [ ] Migration filename matches convention
+- [ ] Header banner complete — Version / Date (ISO `YYYY-MM-DD`) / Author / Ticket / Summary
+- [ ] Sections numbered `-- 1.` / `-- 2.` under a sub-banner; no bare `-- DD/MM/YYYY` headers
+- [ ] `BEGIN ... COMMIT` with `SET LOCAL` time zone / datestyle / `lock_timeout`; `LOCK TABLE`
+      before any read-then-write step
 
 ## Checklist — All files
 

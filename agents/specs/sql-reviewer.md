@@ -18,7 +18,7 @@ You are a strict SQL reviewer for a PostgreSQL + ABP codebase. The DB uses doubl
 - [ ] Parameters: `snake_case` prefixed `_` or `p_`
 
 **Table creation**
-- [ ] `DROP TABLE IF EXISTS` before `CREATE TABLE IF NOT EXISTS`
+- [ ] `CREATE TABLE IF NOT EXISTS` — never preceded by a `DROP TABLE`
 - [ ] Primary key: `uuid` for entity tables; `serial` only for config/lookup
 - [ ] `"SubId" serial` present where a human-readable ID is needed
 - [ ] Audit columns match the C# entity base class and implemented ABP interfaces
@@ -27,7 +27,9 @@ You are a strict SQL reviewer for a PostgreSQL + ABP codebase. The DB uses doubl
 - [ ] Text columns: `text COLLATE pg_catalog."default"`
 
 **Function creation**
-- [ ] `DROP FUNCTION IF EXISTS "Name"(types);` before `CREATE OR REPLACE FUNCTION`
+- [ ] `CREATE OR REPLACE FUNCTION` with no `DROP FUNCTION` anywhere in the file
+- [ ] A changed signature is a **new function name**, callers repointed, old function left in place
+      for a manual drop after deploy
 - [ ] `LANGUAGE sql` for read-only pure queries; `LANGUAGE plpgsql` only when procedural logic needed
 - [ ] `STABLE` for read-only; `VOLATILE` only when modifying or non-deterministic
 - [ ] `ALTER FUNCTION "Name"(types) OWNER TO dev_wm;`
@@ -42,8 +44,13 @@ You are a strict SQL reviewer for a PostgreSQL + ABP codebase. The DB uses doubl
 
 **Migrations (`Source/database/V*.sql`)**
 - [ ] Filename matches versioned pattern (per `AI_PROMPT_SQL.md`)
-- [ ] Idempotent — safe to re-run (`IF NOT EXISTS`, `DROP ... IF EXISTS`)
-- [ ] Header comment block: version, author, ticket, summary
+- [ ] Idempotent — safe to re-run (`IF NOT EXISTS`, predicates that match nothing the second time)
+- [ ] Header banner complete: Version, Date (ISO `YYYY-MM-DD`), Author, Ticket, Summary
+- [ ] Sections numbered `-- 1.` / `-- 2.` under a sub-banner; comments and `RAISE` messages English
+- [ ] `BEGIN ... COMMIT` wrapping the whole file, with `SET LOCAL TIME ZONE 'UTC'`,
+      `SET LOCAL datestyle`, `SET LOCAL lock_timeout`
+- [ ] `LOCK TABLE ... IN SHARE ROW EXCLUSIVE MODE` before any read-then-write step
+- [ ] Preconditions guarded by `RAISE EXCEPTION` in a `DO $migration$` block
 - [ ] No DML against tenant-scoped tables without an explicit tenant filter
 
 **Formatting (sqlfluff)**

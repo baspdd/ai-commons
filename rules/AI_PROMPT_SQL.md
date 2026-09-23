@@ -43,8 +43,6 @@ EF mapping, and existing schema before generating a migration.
 
 **Table Creation Pattern**
 ```sql
-DROP TABLE IF EXISTS public."WM_TableName";
-
 CREATE TABLE IF NOT EXISTS public."WM_TableName"
 (
     "Id" uuid PRIMARY KEY,           -- uuid for entity tables
@@ -57,6 +55,9 @@ TABLESPACE pg_default;
 ALTER TABLE IF EXISTS public."WM_TableName"
     OWNER TO dev_wm;
 ```
+- **No `DROP TABLE` in a migration either** — same reasoning as functions, and it destroys data.
+  A table that has to be replaced gets a new name plus a copy step; the obsolete one is dropped by
+  hand afterwards. `CREATE TABLE IF NOT EXISTS` already makes a re-run harmless.
 - Primary key: `uuid` for entity tables, `serial` for config/lookup tables
 - `"SubId" serial` for human-readable sequential IDs
 - Always set `OWNER TO dev_wm`
@@ -65,9 +66,6 @@ ALTER TABLE IF EXISTS public."WM_TableName"
 
 **Function Creation Pattern**
 ```sql
--- Drop previous version first
-DROP FUNCTION IF EXISTS "FunctionName"(param_types);
-
 CREATE OR REPLACE FUNCTION "FunctionName"(param_name param_type)
 RETURNS TABLE(...) | RETURNS type
 LANGUAGE sql | plpgsql
@@ -79,7 +77,14 @@ $$ | $BODY$;
 ALTER FUNCTION "FunctionName"(param_types)
     OWNER TO dev_wm;
 ```
-- `DROP FUNCTION IF EXISTS` before `CREATE OR REPLACE` to handle signature changes
+- **Never `DROP FUNCTION` in a migration — `CREATE OR REPLACE` only.** Between the `DROP` and the
+  `CREATE` the function does not exist, so any concurrent call fails outright, and `DROP ... CASCADE`
+  additionally takes the dependent triggers and views with it, silently.
+- **A signature change means a new function under a new name.** `CREATE OR REPLACE` cannot change
+  the return type or the parameter list — Postgres either rejects it or quietly creates a second
+  overload. Write the new name, repoint every caller, leave the old function in place. Removing the
+  obsolete one is a manual step run separately once the deploy is confirmed; it never ships inside
+  the migration file.
 - `LANGUAGE sql` for pure read-only queries (prefer over plpgsql when no procedural logic needed)
 - `LANGUAGE plpgsql` for procedural logic (loops, variables, conditionals)
 - `STABLE` for read-only functions, `VOLATILE` for functions that modify data or depend on mutable state
@@ -134,10 +139,11 @@ CREATE OR REPLACE TRIGGER trigger_name
 
 **Security & Safety**
 - Never concatenate user input into SQL strings — use parameterized queries
-- Always `DROP ... IF EXISTS` before `CREATE OR REPLACE` for functions (handles signature changes)
-- Use `IF NOT EXISTS` for `CREATE TABLE`
-- Wrap multi-step data modifications in transactions (plpgsql `BEGIN ... EXCEPTION ... END`)
-- Test destructive operations (`DROP`, `DELETE`, `UPDATE` without WHERE) in staging first
+- No `DROP` of any kind inside a migration — `CREATE OR REPLACE` for functions, a new name for a
+  signature change, `IF NOT EXISTS` for tables and columns. Removing the obsolete object is a
+  manual step, run separately once the deploy is confirmed
+- Wrap every migration in `BEGIN ... COMMIT` with the session settings below
+- Test destructive operations (`DELETE`, `UPDATE` without WHERE) in staging first
 
 **Soft Delete in Raw SQL**
 The ABP soft-delete filter is an EF Core query filter. It applies to LINQ only — never to
@@ -166,15 +172,88 @@ that omits the predicate returns deleted rows silently: no error, no warning, ju
   `V20260921_01__SQL_v2.6.0.sql` section 8 shows this audit embedded in the migration itself.
 
 **Migration File Conventions**
-- File naming: `V{YYYYMMDD}_{seq}__{description}.sql` (Flyway format, double underscore)
-- Date comment headers: `-- DD/MM/YYYY` at the top of each section
-- Section order within a migration:
-  1. Table drops / creates
-  2. ALTER TABLE (add/rename/drop columns)
-  3. Function drops / creates
+
+This layout is fixed. A migration that deviates is wrong even if it runs — the whole point is that
+any file in `Source/database/` can be read the same way by the next person.
+
+*File naming* — `V{YYYYMMDD}_{seq}__{description}.sql` (Flyway format, double underscore). The
+description follows the host repository; Work Management uses `SQL_v{semver}`, e.g.
+`V20260923_01__SQL_v2.6.0.sql`.
+
+*Header* — mandatory, all five fields, never partial. Date is **ISO `YYYY-MM-DD`**, banner rule is
+93 `=` characters:
+
+```sql
+-- =============================================================================================
+-- Version    : V20260730_02
+-- Date       : 2026-07-30
+-- Author     : <git user.name>
+-- Ticket     : 12770
+-- Summary    : One imperative line saying what this migration changes.
+-- =============================================================================================
+```
+
+- `Version` repeats the filename stem. `Ticket` is required — write `-` only when a change genuinely
+  has no ticket.
+- `Summary` is one line. Rationale, measurements and deployment notes go **below** the banner under
+  their own sub-banner headings, never crammed into `Summary`.
+
+*Comment language* — **English**, everywhere: header, section headings, inline comments,
+`RAISE EXCEPTION` and `RAISE NOTICE` messages.
+
+*Sections* — numbered, each introduced by a sub-banner (93 `-`), explaining why, not restating the
+SQL:
+
+```sql
+-- ---------------------------------------------------------------------------------------------
+-- 1. Audit columns for WM_RelateTables
+-- ---------------------------------------------------------------------------------------------
+```
+
+Do not use bare `-- DD/MM/YYYY` date headers: the date already lives in the filename and the header
+block.
+
+*Section order within a migration:*
+  1. Table creates
+  2. ALTER TABLE (add / rename columns)
+  3. Function creates (`CREATE OR REPLACE` only)
   4. Trigger creation
   5. Data seeding (INSERT / UPDATE)
   6. Sequence resets
+
+*Transaction wrapper* — one transaction per file, with explicit session settings, so a failure
+halfway through leaves nothing behind:
+
+```sql
+BEGIN;
+
+SET LOCAL TIME ZONE 'UTC';
+SET LOCAL datestyle = 'ISO, YMD';
+SET LOCAL lock_timeout = '60s';
+
+-- numbered sections ...
+
+COMMIT;
+```
+
+- `TIME ZONE 'UTC'` / `datestyle`: the file must behave identically whatever the operator's session
+  defaults are.
+- `lock_timeout`: the migration fails fast instead of queueing behind a long-running read and
+  blocking the whole application while it waits.
+- Take an explicit lock before any read-then-write step whose correctness depends on writers being
+  stopped:
+  ```sql
+  LOCK TABLE public."WM_TableName" IN SHARE ROW EXCLUSIVE MODE;
+  ```
+  `SHARE ROW EXCLUSIVE` blocks writers while still allowing read-only diagnostics.
+  `ACCESS EXCLUSIVE` only for a table being rewritten or retired.
+- Guard preconditions instead of assuming them — `RAISE EXCEPTION` inside a `DO $migration$` block
+  when a required table, column or constraint is absent, so the transaction aborts with a readable
+  message rather than a constraint violation 300 lines later.
+- Every statement idempotent: `IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, and `UPDATE` predicates
+  that match nothing on a second run.
+
+Reference implementation: `V20260730_02__SQL_v2.3.0.sql`.
 
 **SQL Formatting & Linting (sqlfluff)**
 Every `.sql` file (migrations, functions, ad-hoc scripts) must pass `sqlfluff lint` cleanly
@@ -194,7 +273,8 @@ using the host project's root `.sqlfluff` config before commit. The config pins
 
 - [ ] Table/column names: `"WM_PascalCase"` / `"PascalCase"`, double-quoted
 - [ ] Function names: case-sensitive `"PascalCase"`, mirror .NET method names
-- [ ] `DROP FUNCTION IF EXISTS` before `CREATE OR REPLACE FUNCTION`
+- [ ] No `DROP` of any kind in the migration — `CREATE OR REPLACE`; a signature change gets a new
+      function name, and the obsolete object is dropped by hand after deploy
 - [ ] `LANGUAGE sql` + `STABLE` for read-only; `plpgsql` + `VOLATILE` for procedural/mutating
 - [ ] `OWNER TO dev_wm` on all tables and functions
 - [ ] Audit columns match the entity's actual base class/interfaces
@@ -207,7 +287,12 @@ using the host project's root `.sqlfluff` config before commit. The config pins
 - [ ] No string concatenation for parameters — use `$1` / named params
 - [ ] Sequence reset after bulk insert with serial columns
 - [ ] Migration file follows `V{YYYYMMDD}_{seq}__{description}.sql` naming
-- [ ] Date headers (`-- DD/MM/YYYY`) separate logical sections
+- [ ] Header banner carries all five fields — Version / Date (ISO `YYYY-MM-DD`) / Author / Ticket /
+      Summary
+- [ ] Sections numbered `-- 1.` / `-- 2.` under a sub-banner; no bare `-- DD/MM/YYYY` headers
+- [ ] Every comment and `RAISE` message in English
+- [ ] Wrapped in `BEGIN ... COMMIT` with `SET LOCAL` time zone / datestyle / `lock_timeout`, and an
+      explicit `LOCK TABLE` before any read-then-write step
 - [ ] SQL passes `sqlfluff lint` with the project `.sqlfluff` (dialect=postgres); no new violations
 
 ---
