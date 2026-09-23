@@ -139,6 +139,32 @@ CREATE OR REPLACE TRIGGER trigger_name
 - Wrap multi-step data modifications in transactions (plpgsql `BEGIN ... EXCEPTION ... END`)
 - Test destructive operations (`DROP`, `DELETE`, `UPDATE` without WHERE) in staging first
 
+**Soft Delete in Raw SQL**
+The ABP soft-delete filter is an EF Core query filter. It applies to LINQ only — never to
+`FromSqlRaw`, `ExecuteSqlRaw`, `NpgsqlCommand`, PostgreSQL functions, views, or matviews. Raw SQL
+that omits the predicate returns deleted rows silently: no error, no warning, just wrong numbers.
+- Every raw read of a soft-delete table must carry `"IsDeleted" = false` itself, once per alias.
+  A single predicate does not cover a second join onto the same table.
+- Never `DELETE FROM` a soft-delete table. Use
+  `UPDATE ... SET "IsDeleted" = true, "DeletionTime" = now() AT TIME ZONE 'utc', "DeleterId" = ...`
+  so the row keeps its audit trail and stays restorable.
+- A unique index on a soft-delete table must be partial (`WHERE "IsDeleted" = false`). A plain
+  unique index makes a deleted row block the re-creation of the same key forever.
+- **Promoting a table from hard delete to soft delete is a breaking change to every raw query that
+  already reads it.** Before shipping such a migration, audit the live catalog — not just the
+  repository, because most functions in this product exist only on the database and appear in no
+  `.sql` file:
+  ```sql
+  SELECT p.proname, pg_get_functiondef(p.oid)
+  FROM pg_proc AS p
+  JOIN pg_namespace AS n ON n.oid = p.pronamespace
+  WHERE n.nspname = 'public'
+    AND p.prokind IN ('f', 'p')          -- pg_get_functiondef() raises 42809 on aggregates
+    AND pg_get_functiondef(p.oid) LIKE '%<TableName>%';
+  ```
+  Repeat on every tenant database: they drift, so a function absent from one may exist on another.
+  `V20260921_01__SQL_v2.6.0.sql` section 8 shows this audit embedded in the migration itself.
+
 **Migration File Conventions**
 - File naming: `V{YYYYMMDD}_{seq}__{description}.sql` (Flyway format, double underscore)
 - Date comment headers: `-- DD/MM/YYYY` at the top of each section
@@ -172,7 +198,10 @@ using the host project's root `.sqlfluff` config before commit. The config pins
 - [ ] `LANGUAGE sql` + `STABLE` for read-only; `plpgsql` + `VOLATILE` for procedural/mutating
 - [ ] `OWNER TO dev_wm` on all tables and functions
 - [ ] Audit columns match the entity's actual base class/interfaces
-- [ ] `WHERE "IsDeleted" = false` on reads of soft-delete entities unless intentionally bypassed
+- [ ] `WHERE "IsDeleted" = false` on reads of soft-delete entities unless intentionally bypassed —
+      once per alias, and in raw SQL too (the ABP filter does not reach it)
+- [ ] No `DELETE FROM` on a soft-delete table; unique indexes on one are partial
+- [ ] Turning a table into a soft-delete table: live `pg_proc` audit done on every tenant database
 - [ ] `COALESCE` for all nullable values in calculations
 - [ ] CTEs with descriptive `snake_case` names and comments
 - [ ] No string concatenation for parameters — use `$1` / named params
