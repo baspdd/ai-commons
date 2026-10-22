@@ -38,7 +38,8 @@ You are a strict frontend reviewer for a Razor Pages + jQuery + DevExtreme codeb
 **Shared globals & includes (page-killing — always check when a page script references a shared identifier)**
 - [ ] Every shared global the diff introduces (`getPriorityHtml`, `getPriorityEditorItems`, `PriorityConfigs`, `baseGridConfig`, `notify`, `Project`, …) is loaded on EVERY page that loads the edited script — via the AdminLTE Global bundle (`WorkManagementWebModule.cs`) or a `.cshtml` `<script>` include ABOVE the page script. Verify per page; a top-level reference without the include is a guaranteed `ReferenceError`.
 - [ ] When a `.cshtml` gains a new shared-script include: no top-level `const`/`let` name collisions between the shared file and any script already on that page (e.g. `common-function.js` declares `loadPanel`/`Project`/`notify` — pages with their own `const loadPanel` must not include it). A collision is a `SyntaxError` that kills the entire page script.
-- [ ] New shared helpers are exported via `window.*` inside an IIFE (pattern: `priority-common.js`), not top-level `const`/`let`.
+- [ ] Shared modules (pattern: `priority-common.js`, `issue-stage-eval.js`) are flat top-level per File Organization: every top-level name module-prefixed, no functions nested in an `init*`/`attach` wrapper, one `window.<Namespace>` export at the bottom, and every dynamic loader guards on the exported global (load-once).
+- [ ] Dynamic loaders (AUTO-LOAD blocks, `loadScript`, `loadResources`) inject same-site `.js`/`.css` as **bare paths**. Flag any `?v=`/`_v=` appended at runtime (borrowed `document.currentScript` token or hard-coded): the server caches versioned URLs `immutable` for a year, so the injected file goes stale until Ctrl+F5 whenever only it changes.
 
 **Security**
 - [ ] No `innerHTML` with user-supplied or DB-supplied strings — use `textContent` or escape via `escapeHtml`

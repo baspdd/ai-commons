@@ -143,10 +143,47 @@ Page scripts are classic scripts sharing one global scope; two mistakes here kil
   `common-function.js` declares `loadPanel`, `Project`, `notify`, `Table`, `baseGridConfig`, …
   — several task pages (e.g. `SubTask/Tasks`, `ForAProject/Personal`, `TodoList`) declare
   their own `const loadPanel`, so `common-function.js` must NOT be added there.
-- **New shared helpers**: put them in a module that exports via `window.*` inside an IIFE
-  (pattern: `priority-common.js`) — never as top-level `const`/`let` — so they can neither
-  collide nor be load-order-fragile. Prefer extending the global-bundle module over adding
-  per-page includes.
+- **New shared helpers / shared modules** (pattern: `priority-common.js`,
+  `issue-stage-eval.js`, `approval-display-common.js`) — flat top-level, no IIFE wrapper:
+  - Lay the file out per **File Organization** below (CONSTANTS → HELPERS → API / feature
+    sections → INIT → `// ═══ EXPORT ═══`); no functions nested inside an `init*`/`attach`
+    wrapper — lift them to top level and pass shared context as a plain `view`/`ctx` object.
+  - **Prefix every top-level name with the module** (`ISSUE_EVAL_WORK_KINDS`,
+    `issueEvalValidate`, `APPROVAL_TD_LEVELS`, `PRIORITY_STYLESHEETS`) — generic names
+    (`validate`, `render`, `attach`, `state`) silently override, or `SyntaxError`-collide
+    with, a page script's own declarations.
+  - Publish the public API once at the bottom: `window.<Namespace> = Object.freeze({ … })`;
+    names that already ARE the global API (`getPriorityHtml`, …) keep their names and are
+    assigned to `window.*` explicitly (a top-level `const` is not a `window` property).
+  - **Load exactly once**: a second copy throws "already declared" on its top-level
+    `const`s. Every dynamic loader must guard on the exported global
+    (`if (window.PRIORITY_PALETTE || document.querySelector(...)) return;`) — a
+    `script[src]` check alone misses the minified global bundle.
+  - Before adding/renaming a top-level name, grep `const|let|var|function <name>` across
+    every script the page loads (whole app for the global bundle); a page-level
+    `let x = (…) => window.x(…)` alias of a shared function is itself a collision — delete it.
+  - Prefer extending the global-bundle module over adding per-page includes.
+- **Dynamically injected `.js`/`.css` (AUTO-LOAD blocks, `loadScript`, `loadResources`) — cache
+  busting, or users need Ctrl+F5 after every deploy**:
+  - Server policy (`ApplyStaticAssetCachePolicy`): URL with `?v=`/`?_v=` → `immutable`, cached
+    1 year; unversioned → `no-cache` (revalidated each load, cheap 304).
+  - So inject same-site files as **bare paths** (`script.src = '/dist/js/common/x.js'`).
+    **Never** append a token borrowed from another file (e.g. the loader's own
+    `document.currentScript` `_v`) or a hand-written `?v=1`: when only the injected file
+    changes, that URL stays identical and the browser keeps the stale copy.
+  - A versioned URL is only correct when the token is the injected file's **own** content
+    hash (static `<script asp-append-version="true">` / `<abp-script>` in the `.cshtml`).
+  - Keep the duplicate guard as a prefix match on the bare path (`script[src^="…"]`) so a
+    copy the page already included with its own `?v=` still counts.
+- **Production minifies every `<abp-script>` / global-bundle file with NUglify; Development
+  does not** — so a minifier bug shows up only on the server:
+  - Stock NUglify local renaming corrupts shorthand destructuring with a default
+    (`function f(s, { flag = null } = {})` → `function f(n,{t=null}={})`, so `flag` is always
+    the default). `Bundling/KeepNamesJavascriptMinifier.cs` replaces ABP's minifier with
+    `LocalRenaming.KeepAll` to prevent this — **do not remove it**.
+  - When a feature works locally but not on the server with identical API data, reproduce
+    with `ASPNETCORE_ENVIRONMENT=Production` (or temporarily `BundlingMode.BundleAndMinify`)
+    before suspecting cache or data.
 
 **Cached DOM selectors (page-level jQuery code)**
 - Declare module-level `$selector` variables once at the top (next to state) and assign them in a `cacheSelectors()` helper called from init
@@ -269,7 +306,8 @@ function diffHtml(htmlBefore, htmlAfter) {
 - [ ] **Inline comments** marking major steps (// 1. Validate, // 2. Parse, etc.) — only when the body has multiple distinct steps worth labelling, not as filler for 3-line functions
 - [ ] Input validation (null/empty checks)
 - [ ] **Shared globals resolvable on every page that loads the script** — identifier comes from the AdminLTE Global bundle or a `.cshtml` `<script>` include placed BEFORE the page script; checked per page, not assumed
-- [ ] **No top-level `const`/`let` collisions** when a page gains a new shared-script include (grep both files' top-level declarations first); new shared helpers export via `window.*` in an IIFE, never top-level `const`/`let`
+- [ ] **No top-level `const`/`let` collisions** when a page gains a new shared-script include (grep both files' top-level declarations first); shared modules are flat top-level with module-prefixed names, one `window.<Namespace>` export at the bottom, and a load-once guard on every dynamic loader
+- [ ] **Dynamically injected `.js`/`.css` use bare same-site paths** — no borrowed `_v`/`v` token, no hand-written `?v=`; otherwise the URL is cached `immutable` and users need Ctrl+F5 after a deploy
 - [ ] Safe DOM handling (DOMParser, textContent)
 - [ ] **jQuery-first** — `$('#id')` not `document.getElementById()`, `$el.remove()` not `el?.remove()`, etc.
 - [ ] `const`/`let` (not `var` unless legacy)

@@ -45,6 +45,7 @@ Source: `rules/AI_PROMPT_FRONTEND.md`
 - [ ] Section banners use em-dash `// ─── SECTION NAME ──` for page-level JS
 - [ ] Flat `renderXxx()` / `onXxxClick()` functions, not object-based pseudo-classes
 - [ ] No premature extraction — short single-use logic is inlined
+- [ ] Dynamic loaders inject same-site `.js`/`.css` as bare paths — no runtime `?v=`/`_v=` (borrowed or hard-coded); versioned URLs are cached `immutable` and force users to Ctrl+F5
 
 ## Checklist — Backend (`*.cs`)
 
